@@ -19,7 +19,7 @@ func main(){
 	logger, f = supporting.CreateLogger(logger)
 	S := make([]byte, 16)
 	T := make([]byte, 16)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 100000; i++ {
 		randSlice(S)
 		randSlice(T)
 		res, err := k.KDF(S, T)
