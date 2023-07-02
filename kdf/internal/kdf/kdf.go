@@ -1,28 +1,17 @@
 package kdf
 
 import (
-	"bufio"
 	"crypto/sha512"
-	"errors"
-	supporting "github.com/jice36/cipher_support"
+	"fmt"
 	"hash"
-	"hash/crc32"
-	"io/ioutil"
-	"log"
-	"os"
-	"os/user"
-	"strconv"
 )
 
 const (
-	ipad     = 0x36
-	opad     = 0x5c
-	sizeHash = 64
+	ipad = 0x36
+	opad = 0x5c
 )
 
-var logger *log.Logger
-var f *os.File
-var checkSum string
+const sizeHash = 64
 
 type kdf struct {
 }
@@ -34,29 +23,19 @@ func New() kdf {
 func (k kdf) KDF(S, T []byte) ([]byte, error) {
 	var err error
 
-	logger, f = supporting.CreateLogger(logger)
-	checkSum, err = begincheckSum()
-
 	h := sha512.New()
 
 	tempKey, err := k1(h, S, T)
-	if err != nil{
-		return nil, err
-	}
-	err = checksum(checkSum)
 	if err != nil {
-		return nil, errors.New("bad checksum")
-	}
-	result,err := k2(h, tempKey, nil)
-	if err != nil{
-		return nil, err
-	}
-	err = checksum(checkSum)
-	if err != nil {
-		return nil, errors.New("bad checksum")
+		return nil, fmt.Errorf("k1: %v", err)
 	}
 
-	defer func() { // очитска ключевой информации
+	result, err := k2(h, tempKey, nil)
+	if err != nil {
+		return nil, fmt.Errorf("k2: %v", err)
+	}
+
+	defer func() { // очистка ключевой информации
 		tempKey = nil
 		result = nil
 		S = nil
@@ -68,7 +47,7 @@ func (k kdf) KDF(S, T []byte) ([]byte, error) {
 
 func k1(h hash.Hash, S, T []byte) ([]byte, error) {
 	res, err := hmac(h, S, T)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 	resLB := lb(res)
@@ -85,7 +64,7 @@ func k2(h hash.Hash, K, info []byte) ([]byte, error) {
 
 	for i := 0; i < count; i++ {
 		z, err = hmac(h, format(z, c), K)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 		c++
@@ -159,47 +138,4 @@ func format(z []byte, c int) []byte {
 	copy(newZ, z)
 	newZ[len(z)] = byte(c)
 	return newZ
-}
-
-func checksum(CheckSum string) error {
-	usr, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	m, err := os.Open(usr.HomeDir + "/go/src/kdf/kdf.go")
-	if err != nil {
-		return err
-	}
-
-	r := bufio.NewReader(m)
-	b, err := ioutil.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	table := crc32.MakeTable(0xD5828281)
-
-	sum := crc32.Checksum(b, table)
-	s := strconv.Itoa(int(sum))
-	if s != CheckSum {
-		err = errors.New("binary file is not legitimate")
-		return err
-	}
-	return nil
-}
-
-func begincheckSum() (string, error) {
-	usr, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	m, err := os.Open(usr.HomeDir + "/go/src/kdf/kdf.go")
-
-	r := bufio.NewReader(m)
-	b, err := ioutil.ReadAll(r)
-
-	table := crc32.MakeTable(0xD5828281)
-
-	sum := crc32.Checksum(b, table)
-	s := strconv.Itoa(int(sum))
-	return s, err
 }
